@@ -20,13 +20,18 @@ db = SQLAlchemy(metadata=metadata)
 class Activity(db.Model, SerializerMixin):
     __tablename__ = 'activities'
 
+    serialize_rules = ('-signups.activity', '-campers.activities')
+
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String)
     difficulty = db.Column(db.Integer)
 
     # Add relationship
+    signups = db.relationship('Signup', back_populates='activity')
+    campers = association_proxy('signups',
+                                'camper',
+                                creator = lambda camper_obj: Signup(camper=camper_obj))
     
-    # Add serialization rules
     
     def __repr__(self):
         return f'<Activity {self.id}: {self.name}>'
@@ -39,9 +44,26 @@ class Camper(db.Model, SerializerMixin):
     name = db.Column(db.String, nullable=False)
     age = db.Column(db.Integer)
 
+    @validates('name')
+    def validate_name(self, key, name):
+        if not name or not len(name):
+            raise ValueError('Must provide a name')
+        return name
+    
+    @validates('age')
+    def validate_age(self, key, age):
+        if not 7 < age < 19:
+            raise ValueError('Age not in 8-18 range')
+        return age
+
     # Add relationship
+    signups = db.relationship('Signup', back_populates='camper')
+    activities = association_proxy('signups', 
+                                    'activity', 
+                                    creator = lambda activity_obj: Signup(activity=activity_obj))
     
     # Add serialization rules
+    serialize_rules = ('-signups.camper', '-activities.campers')
     
     # Add validation
     
@@ -55,10 +77,21 @@ class Signup(db.Model, SerializerMixin):
 
     id = db.Column(db.Integer, primary_key=True)
     time = db.Column(db.Integer)
+    camper_id = db.Column(db.Integer, db.ForeignKey('campers.id'))
+    activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'))
+
+    @validates('time')
+    def validate_time(self, key, time):
+        if not 0 <= time <= 23:
+            raise ValueError("Time must be between 0 and 23 inlcusive")
+        return time
 
     # Add relationships
+    camper = db.relationship('Camper', back_populates='signups')
+    activity = db.relationship('Activity', back_populates='signups')
     
     # Add serialization rules
+    serialize_rules = ('-camper.signups', '-activity.signups')
     
     # Add validation
     
